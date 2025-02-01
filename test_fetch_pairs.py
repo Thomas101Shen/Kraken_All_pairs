@@ -86,7 +86,7 @@ def start_websockets(connections):
             on_close=on_close
         )
         ws.on_open = lambda ws, pg=pair_group: on_open(ws, pg)
-        
+
         thread = threading.Thread(target=lambda: run_persistent_websocket(ws), daemon=True)
         threads.append(thread)
         thread.start()
