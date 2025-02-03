@@ -1,48 +1,57 @@
+# import time
+# from fetch_pairs import WebSocketHandler
+# from data_operations import convert_to_csv, limit_symbol_instances
+# import pandas as pd
+# from kraken_pairs import kraken_pairs
+
+# if __name__ == "__main__":
+#     num_pairs = len(kraken_pairs[0]) + len(kraken_pairs[1])
+#     print("Initializing WebSocketHandler...")
+#     handler = WebSocketHandler()
+#     try:
+#         handler.start_websockets()
+#         while True:
+#             if len(handler.ohlc_data) * 60 >= num_pairs:
+#                 handler.ohlc_data = limit_symbol_instances(handler.ohlc_data)
+#                 convert_to_csv(handler.ohlc_data)
+
+#             time.sleep(1)  # Keep the main thread alive
+
+#     except KeyboardInterrupt:
+#         print("Keyboard interrupt received. Shutting down...")
+#         handler.stop_websockets()
+
+
 import time
-import krakenex
-from pykrakenapi import KrakenAPI
-import traceback
-import os
-from load_env import load_env
+import logging
+from fetch_pairs import WebSocketHandler
+from data_operations import convert_to_csv, limit_symbol_instances
 import pandas as pd
+from kraken_pairs import kraken_pairs
 
-load_env()
-api_key = os.getenv("api_key")
-api_secret = os.getenv("api_secret")
+# Configure logging
+logging.basicConfig(filename="error_logs.log", 
+                    level=logging.ERROR, 
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
-api = krakenex.API(api_key, api_secret)
-kraken = KrakenAPI(api)
-pair = 'BTCUSD'
-interval = 1
-max_bars = 60  # neccessary bars for calculations
-
-try:
-    # Fetch initial data
-    ohlc, last = kraken.get_ohlc_data(pair, interval)
-    print(ohlc.columns)
-except Exception as e:
-    print(f"Error during initialization: {e}")
-    exit(1)
-
-ohlc = ohlc.head(max_bars)
-
-while True:
+if __name__ == "__main__":
+    num_pairs = len(kraken_pairs[0]) + len(kraken_pairs[1])
+    print("Initializing WebSocketHandler...")
+    handler = WebSocketHandler()
+    
     try:
-        now = time.time()
-        prev_interval = now % (interval * 60)
-        sleep_time = interval * 60 - prev_interval
-        print(f"seconds till next update: {sleep_time}")
-        time.sleep(sleep_time)
-        new_ohlc, last = kraken.get_ohlc_data(pair, interval, since=last)
-        ohlc = pd.concat([new_ohlc, ohlc]).head(max_bars)
-        ohlc.to_csv("./ohlc.csv")
+        handler.start_websockets()
+        while True:
+            if len(handler.ohlc_data) * 60 >= num_pairs:
+                handler.ohlc_data = limit_symbol_instances(handler.ohlc_data)
+                convert_to_csv(handler.ohlc_data)
+                # print("updating the csv data")
+
+            time.sleep(1)  # Keep the main thread alive
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received. Shutting down...")
+        handler.stop_websockets()
 
     except Exception as e:
-        if "public call frequency exceeded" in str(e):
-            print("Rate limit exceeded. Retrying in 1 second...")
-            time.sleep(1)
-        else:
-            error_message = f"An error occurred: {e}\n{traceback.format_exc()}"
-            print(error_message)
-            with open("error_log.txt", "a") as error_log:
-                error_log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {error_message}\n")
+        logging.error("An error occurred", exc_info=True)
